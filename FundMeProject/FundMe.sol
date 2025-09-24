@@ -1,1 +1,67 @@
+//SPDX-License-Identifier: MIT
+pragma solidity >=0.8.2 <0.9.0;
 
+import {PriceConversion} from "./PriceConversion.sol";
+
+error NotOwner();
+
+contract FundMe{
+
+using PriceConversion for uint256;
+uint256 constant MIN_USD = 5e18;
+address public immutable i_owner;
+address[] public senders;
+mapping (address funder => uint256 amount) public addressToAmountFunded;
+
+constructor(){
+   i_owner = msg.sender;
+}
+
+function fund() public payable {
+
+msg.value.getConversionRate();
+require (msg.value.getConversionRate() > MIN_USD, "Didn't send funds, not enough ETH");
+senders.push(msg.sender);
+addressToAmountFunded[msg.sender] += msg.value;
+
+}
+
+function withdraw() public OwnerOnly{
+
+   
+   for(uint256 i = 0; i < senders.length; i++){
+       addressToAmountFunded[senders[i]] = 0;
+   }
+   senders = new address[](0);
+
+   // Testing with different ways to withdraw funds.
+ 
+   // payable(msg.sender).transfer(address(this).balance);
+
+   // bool Sent = payable(msg.sender).send(address(this).balance);
+   // require(Sent,"Sending Failed, Something Went Wrong :(");
+
+   (bool callSuccess, ) = msg.sender.call{value: address(this).balance}("");
+   require(callSuccess, "Sending Failed, Something Went Wrong :(");
+}
+
+modifier OwnerOnly(){
+   // This is a gas optimization Technique *** Custom Error ***
+   // require(msg.sender == i_owner, "Can't Withdraw, You're Not the owner");
+
+   if(msg.sender != i_owner){
+      revert NotOwner();
+   }
+   _;
+}
+
+receive() external payable {
+    fund();
+}
+fallback() external payable {
+   fund();
+ }
+
+
+
+}
